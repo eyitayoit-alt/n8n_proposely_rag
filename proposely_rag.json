@@ -1,0 +1,469 @@
+{
+  "name": "proposely_rag",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Set up steps\n1. Postgres Database Setup:\n\t* Install postgres and postgres extension.\n        * Activate postgres extension.\n\n2. OpenAPI account and API key:\n\t* Create account on the OpenAPI website.\n\t* Obtain your API key.\n3. Google API:\n\t* Obtain Google API key and set Google credentials.\n\n4. Postgres Vector Store\n\t* Create a credential and connect to the postgres\n        * Choose insert document as mode\n        * Choose a suitable name for the vector table name.\n\n5. Chat Message\n    * Select Chat Message Triger.\n\n6. AI Agent\n      * Configure your AI agent with appropriate tools and model\n",
+        "height": 540,
+        "width": 500
+      },
+      "id": "0010a357-b39b-4d3f-bb5a-d3d15ce13a00",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -960,
+        180
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFile",
+        "fileToWatch": {
+          "__rl": true,
+          "value": "1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU",
+          "mode": "list",
+          "cachedResultName": "WebDeveloperEyitayoCV",
+          "cachedResultUrl": "https://docs.google.com/document/d/1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU/edit?usp=drivesdk"
+        }
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -20
+      ],
+      "id": "bdd55090-09bc-4dc7-9da2-48e892916f51",
+      "name": "Google Drive Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Google Drive Trigger').item.json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        480,
+        -20
+      ],
+      "id": "cd78fc4b-347d-4e72-b002-8caad24d4e4f",
+      "name": "Google Drive"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": "cv_vectors",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "typeVersion": 1.1,
+      "position": [
+        700,
+        20
+      ],
+      "id": "35b99cca-3a74-45d4-8507-cffbb416f43b",
+      "name": "Postgres PGVector Store",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        280
+      ],
+      "id": "09fbdcfe-3a55-47e5-98bd-5ad45847a3b0",
+      "name": "Embeddings OpenAI2"
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "file_id",
+                "value": "={{ $json.id }}"
+              },
+              {
+                "name": "file_name",
+                "value": "={{ $json.name }}"
+              },
+              {
+                "name": "owners_name",
+                "value": "={{ $('Google Drive Trigger').item.json.owners[0].displayName }}"
+              },
+              {
+                "name": "owners_email",
+                "value": "={{ $('Google Drive Trigger').item.json.owners[0].emailAddress }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        820,
+        180
+      ],
+      "id": "3cac35a8-8df8-47de-9d8d-cb62dbe4751d",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        980,
+        380
+      ],
+      "id": "db41cfce-d4df-4760-8c8c-16dbcb318455",
+      "name": "Recursive Character Text Splitter1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DO $$\nBEGIN\n    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'cv_vectors') THEN\n        EXECUTE 'DELETE FROM cv_vectors WHERE metadata->>''file_id'' LIKE ''%' || $1 || '%''';\n    END IF;\nEND\n$$;",
+        "options": {
+          "queryReplacement": "={{ $json.id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        -20
+      ],
+      "id": "34dd9b43-3383-4ba9-b582-b4dd8d1974c8",
+      "name": "Postgres",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "cv_knowledge_base",
+        "toolDescription": "Use the data in the posgres vector store",
+        "tableName": "cv_vectors",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        820
+      ],
+      "id": "1af37e31-799f-4f62-ba12-46f7398de547",
+      "name": "Proposely Store"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -100,
+        740
+      ],
+      "id": "6b12cbf0-3c47-4334-abb4-65d1cc6d9cd6",
+      "name": "Job description",
+      "webhookId": "8bb578ef-8d9f-4461-9848-c542eb40890e"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        420,
+        660
+      ],
+      "id": "1511e390-820f-4735-9151-4612ebfb2b8e",
+      "name": "Proposely Agent"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        540,
+        840
+      ],
+      "id": "9eee8023-79a3-4c08-a4a6-fced8853d6ca",
+      "name": "Postgres Chat Memory1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4",
+          "mode": "list",
+          "cachedResultName": "gpt-4"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        420,
+        860
+      ],
+      "id": "2dfbb436-d081-4631-9b5d-b03ba3e4c977",
+      "name": "OpenAI Chat Model2"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        1000
+      ],
+      "id": "66369529-920f-42a7-a914-643867f322b2",
+      "name": "Embeddings OpenAI"
+    }
+  ],
+  "pinData": {
+    "Google Drive Trigger": [
+      {
+        "json": {
+          "exportLinks": {
+            "application/rtf": "https://docs.google.com/feeds/download/documents/export/Export?id=1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU&exportFormat=rtf",
+            "application/vnd.oasis.opendocument.text": "https://docs.google.com/feeds/download/documents/export/Export?id=1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU&exportFormat=odt",
+            "text/html": "https://docs.google.com/feeds/download/documents/export/Export?id=1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU&exportFormat=html",
+            "application/pdf": "https://docs.google.com/feeds/download/documents/export/Export?id=1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU&exportFormat=pdf",
+            "text/x-markdown": "https://docs.google.com/feeds/download/documents/export/Export?id=1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU&exportFormat=markdown",
+            "text/markdown": "https://docs.google.com/feeds/download/documents/export/Export?id=1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU&exportFormat=markdown",
+            "application/epub+zip": "https://docs.google.com/feeds/download/documents/export/Export?id=1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU&exportFormat=epub",
+            "application/zip": "https://docs.google.com/feeds/download/documents/export/Export?id=1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU&exportFormat=zip",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "https://docs.google.com/feeds/download/documents/export/Export?id=1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU&exportFormat=docx",
+            "text/plain": "https://docs.google.com/feeds/download/documents/export/Export?id=1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU&exportFormat=txt"
+          },
+          "parents": [
+            "0AGUFR2FQnPs8Uk9PVA"
+          ],
+          "lastModifyingUser": {
+            "displayName": "eyitayo Babatope",
+            "kind": "drive#user",
+            "me": true,
+            "permissionId": "15247275550092127124",
+            "emailAddress": "eyitayoit@gmail.com",
+            "photoLink": "https://lh3.googleusercontent.com/a/ACg8ocJaxQefmy0-j4AM4AnQPpe25-oR4Trrag9jgoi1Kph980mkqGZW=s64"
+          },
+          "owners": [
+            {
+              "displayName": "eyitayo Babatope",
+              "kind": "drive#user",
+              "me": true,
+              "permissionId": "15247275550092127124",
+              "emailAddress": "eyitayoit@gmail.com",
+              "photoLink": "https://lh3.googleusercontent.com/a/ACg8ocJaxQefmy0-j4AM4AnQPpe25-oR4Trrag9jgoi1Kph980mkqGZW=s64"
+            }
+          ],
+          "permissions": [
+            {
+              "kind": "drive#permission",
+              "id": "anyoneWithLink",
+              "type": "anyone",
+              "role": "reader",
+              "allowFileDiscovery": false
+            },
+            {
+              "kind": "drive#permission",
+              "id": "15247275550092127124",
+              "type": "user",
+              "emailAddress": "eyitayoit@gmail.com",
+              "role": "owner",
+              "displayName": "eyitayo Babatope",
+              "photoLink": "https://lh3.googleusercontent.com/a/ACg8ocJaxQefmy0-j4AM4AnQPpe25-oR4Trrag9jgoi1Kph980mkqGZW=s64",
+              "deleted": false,
+              "pendingOwner": false
+            }
+          ],
+          "spaces": [
+            "drive"
+          ],
+          "capabilities": {
+            "canAcceptOwnership": false,
+            "canAddChildren": false,
+            "canAddMyDriveParent": false,
+            "canChangeCopyRequiresWriterPermission": true,
+            "canChangeSecurityUpdateEnabled": false,
+            "canChangeViewersCanCopyContent": true,
+            "canComment": true,
+            "canCopy": true,
+            "canDelete": true,
+            "canDisableInheritedPermissions": false,
+            "canDownload": true,
+            "canEdit": true,
+            "canEnableInheritedPermissions": true,
+            "canListChildren": false,
+            "canModifyContent": true,
+            "canModifyContentRestriction": true,
+            "canModifyEditorContentRestriction": true,
+            "canModifyOwnerContentRestriction": true,
+            "canModifyLabels": false,
+            "canMoveChildrenWithinDrive": false,
+            "canMoveItemIntoTeamDrive": true,
+            "canMoveItemOutOfDrive": true,
+            "canMoveItemWithinDrive": true,
+            "canReadLabels": false,
+            "canReadRevisions": true,
+            "canRemoveChildren": false,
+            "canRemoveContentRestriction": false,
+            "canRemoveMyDriveParent": true,
+            "canRename": true,
+            "canShare": true,
+            "canTrash": true,
+            "canUntrash": true
+          },
+          "permissionIds": [
+            "anyoneWithLink",
+            "15247275550092127124"
+          ],
+          "linkShareMetadata": {
+            "securityUpdateEligible": false,
+            "securityUpdateEnabled": true
+          },
+          "kind": "drive#file",
+          "id": "1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU",
+          "name": "WebDeveloperEyitayoCV",
+          "mimeType": "application/vnd.google-apps.document",
+          "starred": false,
+          "trashed": false,
+          "explicitlyTrashed": false,
+          "version": "248",
+          "webViewLink": "https://docs.google.com/document/d/1bidHwOAL9YL9BOJ5_olvX3eoN-go4q-_Nq2cG-Iv3WU/edit?usp=drivesdk",
+          "iconLink": "https://drive-thirdparty.googleusercontent.com/16/type/application/vnd.google-apps.document",
+          "hasThumbnail": true,
+          "thumbnailLink": "https://lh3.googleusercontent.com/drive-storage/AJQWtBMCHA2CPrPL4BtwuaJM9c1xAPlbc-AveyIWuJA66HzF2eTvnBhZgOScaiGkZhpe6uCHMuhlsZaDPucBp1U0l1bSbPOpYUs0gZYtHVMK5FjqWTUV_koIyHkqWxSQAQ=s220",
+          "thumbnailVersion": "58",
+          "viewedByMe": true,
+          "viewedByMeTime": "2025-05-02T07:04:38.954Z",
+          "createdTime": "2024-02-06T12:14:32.281Z",
+          "modifiedTime": "2025-05-02T05:56:03.448Z",
+          "modifiedByMeTime": "2025-05-02T05:56:03.448Z",
+          "modifiedByMe": true,
+          "shared": true,
+          "ownedByMe": true,
+          "viewersCanCopyContent": true,
+          "copyRequiresWriterPermission": false,
+          "writersCanShare": true,
+          "size": "7987",
+          "quotaBytesUsed": "8677",
+          "isAppAuthorized": false,
+          "inheritedPermissionsDisabled": false
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Postgres PGVector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI2": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Postgres PGVector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Postgres PGVector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter1": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres": {
+      "main": [
+        [
+          {
+            "node": "Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Proposely Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9bc66ef7-b7ba-4dc3-8feb-7533cc74644a",
+  "meta": {
+    "instanceId": "b40a86914be5ca83a4a7b85a7ca686b8b1dcbd5ba3c5c8981ad4a5bc162150e1"
+  },
+  "id": "hwezRIwtnbWiiUwz",
+  "tags": []
+}
